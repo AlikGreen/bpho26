@@ -7,7 +7,7 @@ import './style.css';
 import vertWGSL from './assets/shaders/screen.vert.wgsl?raw';
 import fragWGSL from './assets/shaders/task6.frag.wgsl?raw';
 import { BufferUsage } from './tinygpu/buffer';
-import { TextureFormat, TextureUsage } from './tinygpu/texture';
+
 
 const planck =  6.626e-34;
 const eMass = 9.109e-31;

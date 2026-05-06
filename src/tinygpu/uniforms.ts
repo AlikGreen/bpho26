@@ -1,48 +1,88 @@
+import { Buffer } from "./buffer";
 import { Texture } from "./texture";
 
-const UniformType = 
-{
-    Float: 0,
-    Int: 1,
-    Uint: 2,
-} as const;
+// Tagged integer helpers for when you need u32/i32 in a struct
+export const uint = (n: number) => ({ __tag: 'uint' as const, value: n });
+export const int  = (n: number) => ({ __tag: 'int'  as const, value: n });
 
-type UniformType = typeof UniformType[keyof typeof UniformType];
+type TaggedInt = ReturnType<typeof uint> | ReturnType<typeof int>;
+type StructField = boolean | number | number[] | TaggedInt;
+type UniformStruct = Record<string, StructField>;
 
-interface UniformEntry 
-{
-    type: UniformType;
-    values: number[];
+type BindingValue = UniformStruct | ArrayBuffer | ArrayBufferView | Texture | Buffer;
+
+interface BindingOptions {
+    storage?: boolean;
+    storageAccess?: GPUStorageTextureAccess;
+    readOnly?: boolean;
 }
 
-interface TextureEntry
-{
-    binding: number;
-    texture: Texture;
+function packStruct(struct: UniformStruct): ArrayBuffer {
+    let offset = 0;
+
+    type PackedField = { offset: number; values: number[]; tag: 'f32' | 'u32' | 'i32' };
+    const fields: PackedField[] = [];
+
+    for (const raw of Object.values(struct)) {
+        let values: number[];
+        var tag: 'f32' | 'u32' | 'i32' = 'f32';
+
+        if (typeof raw === 'boolean') 
+        {
+            values = [raw ? 1 : 0];
+            tag = 'u32';
+        } else if (typeof raw === 'number') 
+        {
+            values = [raw];
+        } else if (Array.isArray(raw)) 
+        {
+            values = raw;
+        } else 
+        {
+            // Tagged int
+            values = [raw.value];
+            tag = raw.__tag === 'uint' ? 'u32' : 'i32';
+        }
+
+        const count = values.length;
+        const align = count >= 3 ? 16 : count === 2 ? 8 : 4;
+
+        offset = Math.ceil(offset / align) * align;
+        fields.push({ offset, values, tag });
+        offset += count * 4;
+    }
+
+    const buffer = new ArrayBuffer(Math.ceil(offset / 16) * 16);
+    const view = new DataView(buffer);
+
+    for (const { offset, values, tag } of fields) {
+        let o = offset;
+        for (const v of values) {
+            if      (tag === 'f32') view.setFloat32(o, v, true);
+            else if (tag === 'u32') view.setUint32 (o, v, true);
+            else                    view.setInt32  (o, v, true);
+            o += 4;
+        }
+    }
+
+    return buffer;
 }
 
-interface StorageTextureEntry
-{
-    binding: number;
-    texture: Texture;
-    access: GPUStorageTextureAccess;
-}
-
-interface StorageBufferEntry
-{
-    binding: number;
-    buffer: GPUBuffer;
-    readOnly: boolean;
+function isUniformStruct(value: BindingValue): value is UniformStruct {
+    return (
+        typeof value === 'object' &&
+        !(value instanceof ArrayBuffer) &&
+        !ArrayBuffer.isView(value) &&
+        !(value instanceof Texture) &&
+        !(value instanceof GPUBuffer)
+    );
 }
 
 export class Uniforms 
 {
     private device: GPUDevice;
-    private entries: UniformEntry[] = [];
-    private textures: TextureEntry[] = [];
-    private storageTextures: StorageTextureEntry[] = [];
-    private storageBuffers: StorageBufferEntry[] = [];
-    private buffer?: GPUBuffer;
+    private entries = new Map<number, { value: BindingValue; options?: BindingOptions }>();
+    private uniformBuffers = new Map<number, GPUBuffer>();
     private bindGroup?: GPUBindGroup;
     private dirty = true;
 
@@ -51,195 +91,66 @@ export class Uniforms
         this.device = device;
     }
 
-    public setFloat(value: number) 
+    public set(binding: number, value: BindingValue, options?: BindingOptions): this 
     {
-        this.entries.push({ type: UniformType.Float, values: [value] });
+        this.entries.set(binding, { value, options });
         this.dirty = true;
+        return this;
     }
 
-    public setVec2(x: number, y: number) 
+    public clear(): this 
     {
-        this.entries.push({ type: UniformType.Float, values: [x, y] });
+        this.entries.clear();
         this.dirty = true;
-    }
-
-    public setVec3(x: number, y: number, z: number) 
-    {
-        this.entries.push({ type: UniformType.Float, values: [x, y, z] });
-        this.dirty = true;
-    }
-
-    public setVec4(x: number, y: number, z: number, w: number) 
-    {
-        this.entries.push({ type: UniformType.Float, values: [x, y, z, w] });
-        this.dirty = true;
-    }
-
-    public setColor(r: number, g: number, b: number, a: number = 1.0) 
-    {
-        this.setVec4(r, g, b, a);
-    }
-
-    public setInt(value: number) 
-    {
-        this.entries.push({ type: UniformType.Int, values: [value] });
-        this.dirty = true;
-    }
-
-    public setIVec2(x: number, y: number) 
-    {
-        this.entries.push({ type: UniformType.Int, values: [x, y] });
-        this.dirty = true;
-    }
-
-    public setUint(value: number) 
-    {
-        this.entries.push({ type: UniformType.Uint, values: [value] });
-        this.dirty = true;
-    }
-    
-    public setBool(value: boolean) 
-    {
-        this.entries.push({ type: UniformType.Uint, values: [value ? 1 : 0] });
-        this.dirty = true;
-    }
-
-    public setTexture(binding: number, texture: Texture)
-    {
-        this.textures.push({ binding, texture });
-        this.dirty = true;
-    }
-
-    public setStorageTexture(binding: number, texture: Texture, access: GPUStorageTextureAccess = 'write-only')
-    {
-        this.storageTextures.push({ binding, texture, access });
-        this.dirty = true;
-    }
-
-    public setStorageBuffer(binding: number, buffer: GPUBuffer, readOnly: boolean = false)
-    {
-        this.storageBuffers.push({ binding, buffer, readOnly });
-        this.dirty = true;
-    }
-
-    public clear() 
-    {
-        this.entries = [];
-        this.textures = [];
-        this.storageTextures = [];
-        this.storageBuffers = [];
-        this.dirty = true;
+        return this;
     }
 
     public build(pipeline: GPURenderPipeline | GPUComputePipeline, groupIndex: number): GPUBindGroup 
     {
-        if (!this.dirty && this.bindGroup) 
+        if (!this.dirty && this.bindGroup) return this.bindGroup;
+
+        const gpuEntries: GPUBindGroupEntry[] = [];
+
+        for (const [binding, { value, options }] of this.entries) 
         {
-            return this.bindGroup;
-        }
-
-        const bindGroupEntries: GPUBindGroupEntry[] = [];
-
-        // --- Uniform buffer (binding 0) ---
-        if (this.entries.length > 0)
-        {
-            const offsets: number[] = [];
-            let byteOffset = 0;
-
-            for (const entry of this.entries) 
+            if (value instanceof Texture) 
             {
-                const count = entry.values.length;
-                const alignment = count >= 3 ? 16 : count === 2 ? 8 : 4;
-
-                byteOffset = Math.ceil(byteOffset / alignment) * alignment;
-                offsets.push(byteOffset);
-                byteOffset += count * 4;
-            }
-
-            byteOffset = Math.ceil(byteOffset / 16) * 16;
-
-            const arrayBuffer = new ArrayBuffer(byteOffset);
-            const view = new DataView(arrayBuffer);
-
-            for (let i = 0; i < this.entries.length; i++) 
-            {
-                const entry = this.entries[i];
-                let offset = offsets[i];
-
-                for (const value of entry.values) 
+                if (options?.storage)
                 {
-                    switch (entry.type) 
-                    {
-                        case UniformType.Float:
-                            view.setFloat32(offset, value, true);
-                            break;
-                        case UniformType.Int:
-                            view.setInt32(offset, value, true);
-                            break;
-                        case UniformType.Uint:
-                            view.setUint32(offset, value, true);
-                            break;
-                    }
-                    offset += 4;
+                    gpuEntries.push({ binding, resource: value.getView() });
+                } else 
+                {
+                    gpuEntries.push({ binding,     resource: value.getSampler() });
+                    gpuEntries.push({ binding: binding + 1, resource: value.getView() });
                 }
-            }
-
-            if (!this.buffer || this.buffer.size < byteOffset) 
+            } else if (value instanceof Buffer) 
             {
-                this.buffer?.destroy();
-                this.buffer = this.device.createBuffer(
+                gpuEntries.push({ binding, resource: { buffer: value.getBuffer() } });
+            } else 
+            {
+                const raw = isUniformStruct(value)
+                    ? packStruct(value)
+                    : value instanceof ArrayBuffer
+                        ? value
+                        : value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength);
+
+                const size = Math.ceil((raw as ArrayBuffer).byteLength / 16) * 16;
+                let buf = this.uniformBuffers.get(binding);
+                if (!buf || buf.size < size)
                 {
-                    size: byteOffset,
-                    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-                });
+                    buf?.destroy();
+                    buf = this.device.createBuffer({ size, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+                    this.uniformBuffers.set(binding, buf);
+                }
+
+                this.device.queue.writeBuffer(buf, 0, raw as ArrayBuffer);
+                gpuEntries.push({ binding, resource: { buffer: buf } });
             }
-
-            this.device.queue.writeBuffer(this.buffer, 0, arrayBuffer);
-
-            bindGroupEntries.push(
-            {
-                binding: 0,
-                resource: { buffer: this.buffer },
-            });
         }
 
-        for (const tex of this.textures)
-        {
-            bindGroupEntries.push(
-            {
-                binding: tex.binding,
-                resource: tex.texture.getSampler(),
-            });
-
-            bindGroupEntries.push(
-            {
-                binding: tex.binding + 1,
-                resource: tex.texture.getView(),
-            });
-        }
-
-        for (const tex of this.storageTextures)
-        {
-            bindGroupEntries.push(
-            {
-                binding: tex.binding,
-                resource: tex.texture.getView(),
-            });
-        }
-
-        for (const buf of this.storageBuffers)
-        {
-            bindGroupEntries.push(
-            {
-                binding: buf.binding,
-                resource: { buffer: buf.buffer },
-            });
-        }
-
-        this.bindGroup = this.device.createBindGroup(
-        {
+        this.bindGroup = this.device.createBindGroup({
             layout: pipeline.getBindGroupLayout(groupIndex),
-            entries: bindGroupEntries,
+            entries: gpuEntries,
         });
 
         this.dirty = false;

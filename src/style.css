@@ -298,6 +298,6 @@ code {
 canvas {
     display: block;
     margin: 50px;
-    width: min(calc(100vw - 100px), calc(100vh * 4/3 - 100px));
-    aspect-ratio: 4/3;
+    width: min(calc(100vw - 100px), calc(100vh - 100px));
+    aspect-ratio: 1;
 }

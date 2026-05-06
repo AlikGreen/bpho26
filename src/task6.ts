@@ -24,8 +24,10 @@ const eCharge = 1.602e-19;
         screenDistance: 0.3,
         screenSize: 0.3,
         hitColor: {r: 0, g: 255, b: 0, a: 1.0},
+        intensityMultiplier: 1.0,
         atomCount: 30,
-        update: true,
+        numOrientations: 1,
+        autoUpdate: true,
     };
 
     const pane = new Pane(
@@ -39,8 +41,10 @@ const eCharge = 1.602e-19;
     pane.addBinding(PARAMS, 'screenDistance', { min: 0, max: 1 });
     pane.addBinding(PARAMS, 'screenSize', { min: 0.03, max: 1 });
     pane.addBinding(PARAMS, 'hitColor');
+    pane.addBinding(PARAMS, 'intensityMultiplier', { min: 0.001, max: 1 });
     pane.addBinding(PARAMS, 'atomCount', { min: 5, max: 120 });
-    pane.addBinding(PARAMS, 'update');
+    pane.addBinding(PARAMS, 'numOrientations', { min: 1, max: 100 });
+    pane.addBinding(PARAMS, 'autoUpdate');
 
     const renderer = await Renderer.create(canvas);
     const vertShader = renderer.createShader(vertWGSL);
@@ -57,33 +61,51 @@ const eCharge = 1.602e-19;
 
     const uniforms = renderer.createUniforms();
 
+    let button = pane.addButton({ label: 'update', title: 'Update' });
+    button.on("click", () =>
+    {
+        render();
+    });
+
     renderer.onRender(() => 
     {
-        if(PARAMS.update)
+        if(PARAMS.autoUpdate)
         {
-            const wavelength = planck / Math.sqrt(2 * eMass * eCharge * PARAMS.voltage);
-
-            uniforms.clear();
-            uniforms.setFloat(PARAMS.screenDistance * 1e4);
-            uniforms.setFloat(PARAMS.screenSize * 1e4);
-            uniforms.setColor(PARAMS.hitColor.r, PARAMS.hitColor.g, PARAMS.hitColor.b, PARAMS.hitColor.a);
-            uniforms.setFloat(canvas.width/canvas.height);
-            uniforms.setUint(PARAMS.atomCount);
-            uniforms.setFloat(wavelength * 1e9);
-            console.info(wavelength* 1e9)
-
-            renderer.setVertShader(vertShader);
-            renderer.setFragShader(fragShader);        
-            
-            renderer.beginRender();
-            renderer.setVertexBuffer(quad, [VertexFormat.Float2, VertexFormat.Float2]);
-            renderer.setUniforms(uniforms);
-
-            renderer.draw(6);
-            renderer.endRender();
+            render();
+            button.hidden = true;
+        }
+        else
+        {
+            button.hidden = false;
         }
     });
 
     renderer.run();
-})();
 
+    function render()
+    {
+        assert(canvas != null);
+        const wavelength = planck / Math.sqrt(2 * eMass * eCharge * PARAMS.voltage);
+
+        uniforms.clear();
+        uniforms.setFloat(PARAMS.screenDistance * 1e4);
+        uniforms.setFloat(PARAMS.screenSize * 1e4);
+        uniforms.setColor(PARAMS.hitColor.r, PARAMS.hitColor.g, PARAMS.hitColor.b, PARAMS.hitColor.a);
+        uniforms.setFloat(PARAMS.intensityMultiplier);
+        uniforms.setFloat(canvas.width/canvas.height);
+        uniforms.setUint(PARAMS.atomCount);
+        uniforms.setUint(PARAMS.numOrientations);
+        uniforms.setFloat(wavelength * 1e9);
+        console.info(wavelength* 1e9)
+
+        renderer.setVertShader(vertShader);
+        renderer.setFragShader(fragShader);        
+        
+        renderer.beginRender();
+        renderer.setVertexBuffer(quad, [VertexFormat.Float2, VertexFormat.Float2]);
+        renderer.setUniforms(uniforms);
+
+        renderer.draw(6);
+        renderer.endRender();
+    }
+})();

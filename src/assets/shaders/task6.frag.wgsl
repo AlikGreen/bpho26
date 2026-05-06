@@ -3,8 +3,10 @@ struct Uniforms
     screenDistance: f32,
     screenSize: f32,
     hitColor: vec4<f32>,
+    intensityMultiplier: f32,
     aspectRatio: f32,
     numAtoms: u32,
+    numOrientations: u32,
     wavelength: f32, // nanometers
 };
 
@@ -61,27 +63,40 @@ fn main(input: VertexOutput) -> @location(0) vec4f
     var realSum = 0.0;
     var imagSum = 0.0;
 
-    for (var i: u32 = 0; i < params.numAtoms; i++) 
+    for (var orient: u32 = 0; orient < params.numOrientations; orient++) 
     {
-        for (var j: u32 = 0; j < params.numAtoms; j++) 
+        let angle = f32(orient) * 6.2831853 / f32(params.numOrientations);
+        let ca = cos(angle);
+        let sa = sin(angle);
+
+        for (var i: u32 = 0; i < params.numAtoms; i++) 
         {
-            let atom = vec3f(
-                f32(i) * latticeSpacing - crystalOffset, 
-                f32(j) * latticeSpacing - crystalOffset, 
-                0.0
-            );
+            for (var j: u32 = 0; j < params.numAtoms; j++) 
+            {
+                let atom = vec3f(
+                    f32(i) * latticeSpacing - crystalOffset, 
+                    f32(j) * latticeSpacing - crystalOffset, 
+                    0.0
+                );
 
-            let dist= distance(pixelPos, atom);
-            
-            let fractional = fract(dist / params.wavelength);
-            let phase = fractional * 6.2831853;
+                let rotated = vec3f(
+                    atom.x * ca - atom.y * sa,
+                    atom.x * sa + atom.y * ca,
+                    0.0
+                );
 
-            realSum += cos(phase);
-            imagSum += sin(phase);
+                let dist= distance(pixelPos, rotated);
+                
+                let fractional = fract(dist / params.wavelength);
+                let phase = fractional * 6.2831853;
+
+                realSum += cos(phase);
+                imagSum += sin(phase);
+            }
         }
     }
 
     let intensity = (realSum * realSum + imagSum * imagSum) / f32(params.numAtoms * params.numAtoms * params.numAtoms * params.numAtoms);
 
-    return params.hitColor * intensity;
+    return params.hitColor * intensity * params.intensityMultiplier;
 }

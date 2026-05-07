@@ -6,7 +6,11 @@ import './style.css';
 
 import vertWGSL from './assets/shaders/screen.vert.wgsl?raw';
 import fragWGSL from './assets/shaders/task6/task6.frag.wgsl?raw';
-import computeWGSL from './assets/shaders/task6/electronSimulation.wgsl?raw';
+import blurWGSL from './assets/shaders/blur.wgsl?raw';
+
+import simulationWGSL from './assets/shaders/task6/electronSimulation.wgsl?raw';
+import phaseToTexWGSL from './assets/shaders/task6/phaseToImage.wgsl?raw';
+
 import { BufferUsage } from './tinygpu/buffer';
 import { uint } from './tinygpu/uniforms';
 import { TextureFormat, TextureUsage } from './tinygpu/texture';
@@ -30,15 +34,6 @@ class Vec3
     public z = 0.0;
 }
 
-function shuffle<T>(array: T[]): T[]
-{
-    for (let i = array.length - 1; i > 0; i--)
-    {
-        const j = Math.floor(Math.random() * (i + 1));
-        [array[i], array[j]] = [array[j], array[i]];
-    }
-    return array;
-}
 
 function generateGraphite(gridRadius: number, numLayers: number): Vec3[] 
 {
@@ -126,9 +121,10 @@ function generatePolycrystallineStructure(numGrains: number, gridRadius: number,
         screenDistance: 0.3,
         screenSize: 0.3,
         hitColor: {r: 0, g: 255, b: 0, a: 1.0},
-        intensityMultiplier: 0.0,
+        intensityMultiplier: 2.0,
         texSize: 1024,
         progress: 0,
+        blurRadius: 0,
         offset: {x:0.0, y:0.0},
         zoom: 1.0,
 
@@ -194,8 +190,19 @@ function generatePolycrystallineStructure(numGrains: number, gridRadius: number,
 
     simPane.addButton({ label: 'simulate', title: 'Simulate' }).on("click", () =>
     {
-        realStorageTexture.clear();
-        imagStorageTexture.clear();
+        if(realStorageTexture.getWidth() != PARAMS.texSize)
+        {
+            realStorageTexture = renderer.createTexture(PARAMS.texSize, PARAMS.texSize, TextureFormat.R32Float, TextureUsage.StorageBinding | TextureUsage.CopyDst);
+            imagStorageTexture = renderer.createTexture(PARAMS.texSize, PARAMS.texSize, TextureFormat.R32Float, TextureUsage.StorageBinding | TextureUsage.CopyDst);
+            pingTexture = renderer.createTexture(PARAMS.texSize, PARAMS.texSize, TextureFormat.RGBA8Unorm, TextureUsage.StorageBinding | TextureUsage.CopyDst);
+            pongTexture = renderer.createTexture(PARAMS.texSize, PARAMS.texSize, TextureFormat.RGBA8Unorm, TextureUsage.StorageBinding | TextureUsage.CopyDst);
+        }else
+        {
+            realStorageTexture.clear();
+            imagStorageTexture.clear();
+            pingTexture.clear();
+            pongTexture.clear();
+        }
         atomsProccessed = 0;
 
         if(PARAMS.structureType  == 'graphite')
@@ -204,7 +211,6 @@ function generatePolycrystallineStructure(numGrains: number, gridRadius: number,
             atomicStructure = generatePolycrystallineStructure(PARAMS.numGrains, PARAMS.gridRadius, PARAMS.numLayers, generateGrid);
 
         simulating = true;
-        simTextElement.innerText = "Simulating...";
         let i = 0;
 
         const start = performance.now();
@@ -213,7 +219,6 @@ function generatePolycrystallineStructure(numGrains: number, gridRadius: number,
         {
             if (i < atomicStructure.length)
             {
-                // do as many batches as possible in ~8ms per frame
                 const frameStart = performance.now();
                 while (i < atomicStructure.length && performance.now() - frameStart < 8)
                 {
@@ -266,10 +271,15 @@ function generatePolycrystallineStructure(numGrains: number, gridRadius: number,
     viewFolder.addBinding(PARAMS, 'offset', { min: -1, max: 1 })
     viewFolder.addBinding(PARAMS, 'zoom', { min: 1, max: 10 })
 
+    const ppFolder = viewPane.addFolder({ title: 'PostProcess' });
+    ppFolder.addBinding(PARAMS, 'blurRadius', { min: 0, max: 16 });
+
     const renderer = await Renderer.create(canvas);
     const vertShader = renderer.createShader(vertWGSL);
     const fragShader = renderer.createShader(fragWGSL);
-    const computeShader = renderer.createShader(computeWGSL);
+    const computeShader = renderer.createShader(simulationWGSL);
+    const blurShader = renderer.createShader(blurWGSL);
+    const phaseToTexShader = renderer.createShader(phaseToTexWGSL);
 
     const quad = renderer.createBuffer(new Float32Array([
         -1,  1, 0, 1,
@@ -281,13 +291,16 @@ function generatePolycrystallineStructure(numGrains: number, gridRadius: number,
     ]), BufferUsage.Vertex);
 
     const computeUniforms = renderer.createUniforms();
+    const drawToTextureUniforms = renderer.createUniforms();
+    const blurUniforms = renderer.createUniforms();
     const renderUniforms = renderer.createUniforms();
     // const atomicStructure = generateGrid(32);
 
-    var texSize = 1024;
-   
-    var realStorageTexture = renderer.createTexture(texSize, texSize, TextureFormat.R32Float, TextureUsage.StorageBinding | TextureUsage.CopyDst);
-    var imagStorageTexture = renderer.createTexture(texSize, texSize, TextureFormat.R32Float, TextureUsage.StorageBinding | TextureUsage.CopyDst);
+    var realStorageTexture = renderer.createTexture(PARAMS.texSize, PARAMS.texSize, TextureFormat.R32Float, TextureUsage.StorageBinding | TextureUsage.CopyDst);
+    var imagStorageTexture = renderer.createTexture(PARAMS.texSize, PARAMS.texSize, TextureFormat.R32Float, TextureUsage.StorageBinding | TextureUsage.CopyDst);
+
+    var pingTexture = renderer.createTexture(PARAMS.texSize, PARAMS.texSize, TextureFormat.RGBA8Unorm, TextureUsage.StorageBinding | TextureUsage.CopyDst);
+    var pongTexture = renderer.createTexture(PARAMS.texSize, PARAMS.texSize, TextureFormat.RGBA8Unorm, TextureUsage.StorageBinding | TextureUsage.CopyDst);
 
     var atomsProccessed = 0;
 
@@ -298,18 +311,73 @@ function generatePolycrystallineStructure(numGrains: number, gridRadius: number,
     {
         if(simulating) return;
 
-        renderUniforms.set(0, 
+        drawToTextureUniforms.set(0, 
         {
             intensityMultiplier: Math.pow(10, PARAMS.intensityMultiplier),
             hitColor: [PARAMS.hitColor.r/255.0, PARAMS.hitColor.g/255.0, PARAMS.hitColor.b/255.0, PARAMS.hitColor.a],
             atomCount: uint(atomsProccessed),
-            offset: [PARAMS.offset.x, -PARAMS.offset.y],
-            zoom: PARAMS.zoom,
         });
 
 
-        renderUniforms.set(1, realStorageTexture, { storage: true, storageAccess: 'read-only' });
-        renderUniforms.set(2, imagStorageTexture, { storage: true, storageAccess: 'read-only' });
+        drawToTextureUniforms.set(1, realStorageTexture, { storage: true, storageAccess: 'read-only' });
+        drawToTextureUniforms.set(2, imagStorageTexture, { storage: true, storageAccess: 'read-only' });
+        drawToTextureUniforms.set(3, pingTexture, { storage: true, storageAccess: 'write-only' })
+
+        renderer.beginCompute();
+
+        renderer.setComputeShader(phaseToTexShader);
+        renderer.setUniforms(drawToTextureUniforms);
+        renderer.dispatch(PARAMS.texSize/8, PARAMS.texSize/8);
+
+        renderer.endCompute();
+
+
+        if(PARAMS.blurRadius > 1)
+        {
+            renderer.beginCompute();
+
+            blurUniforms.set(0, 
+            {
+                vertical: uint(0),
+                blurRadius: uint(PARAMS.blurRadius),
+            })
+
+            blurUniforms.set(1, pingTexture, { storage: true, storageAccess: 'read-only' });
+            blurUniforms.set(2, pongTexture, { storage: true, storageAccess: 'write-only' });
+
+            renderer.setComputeShader(blurShader);
+            renderer.setUniforms(blurUniforms);
+            renderer.dispatch(PARAMS.texSize/8, PARAMS.texSize/8);
+
+            renderer.endCompute();
+
+            renderer.beginCompute();
+      
+            blurUniforms.set(0, 
+            {
+                vertical: uint(1),
+                blurRadius: uint(PARAMS.blurRadius),
+            })
+
+            blurUniforms.set(1, pongTexture, { storage: true, storageAccess: 'read-only' });
+            blurUniforms.set(2, pingTexture, { storage: true, storageAccess: 'write-only' });
+
+            renderer.setComputeShader(blurShader);
+            renderer.setUniforms(blurUniforms);
+            renderer.dispatch(PARAMS.texSize/8, PARAMS.texSize/8);
+
+            renderer.endCompute();
+        }
+
+    
+
+        renderUniforms.set(0, 
+        {
+            offset: [PARAMS.offset.x, -PARAMS.offset.y],
+            zoom: PARAMS.zoom,
+        })
+
+        renderUniforms.set(1, pingTexture, { storage: true, storageAccess: 'read-only' })
         
         renderer.beginRender();
 
@@ -362,7 +430,7 @@ function generatePolycrystallineStructure(numGrains: number, gridRadius: number,
 
             renderer.setUniforms(computeUniforms);
             renderer.setComputeShader(computeShader);
-            renderer.dispatch(1024/8, 1024/8)
+            renderer.dispatch(PARAMS.texSize/8, PARAMS.texSize/8);
 
             renderer.endCompute();
         }

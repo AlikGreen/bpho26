@@ -74,9 +74,9 @@ function generateGrid(gridRadius: number, numLayers: number)
 
     for(var l = 0; l < numLayers; l++)
     {
-        for(var i = -gridRadius; i < gridRadius; i++)
+        for(var i = -gridRadius; i <= gridRadius; i++)
         {
-            for(var j = -gridRadius; j < gridRadius; j++)
+            for(var j = -gridRadius; j <= gridRadius; j++)
             {
                 atomicStructure.push(new Vec3(i * latticeSpacing, j * latticeSpacing, l * interlayer));
             }
@@ -217,17 +217,16 @@ function generatePolycrystallineStructure(numGrains: number, gridRadius: number,
 
         function tick()
         {
-            if (i < atomicStructure.length)
+            if (atomsProccessed < atomicStructure.length)
             {
                 const frameStart = performance.now();
-                while (i < atomicStructure.length && performance.now() - frameStart < 8)
+                while (atomsProccessed < atomicStructure.length && performance.now() - frameStart < 8)
                 {
                     stepSimulation();
-                    i += BATCH_SIZE;
                 }
 
-                PARAMS.progress = i / atomicStructure.length;
-                simTextElement.innerText = `Simulating ${i}/${atomicStructure.length}`;
+                PARAMS.progress = atomsProccessed / atomicStructure.length;
+                simTextElement.innerText = `Simulating ${atomsProccessed}/${atomicStructure.length}`;
                 requestAnimationFrame(tick);
             }
             else

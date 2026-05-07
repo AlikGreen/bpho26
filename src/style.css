@@ -302,6 +302,8 @@ canvas {
 
 #canvas_container
 {
+    position: relative;
     display: block;
     margin: 50px;
+
 }

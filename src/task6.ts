@@ -211,7 +211,6 @@ function generatePolycrystallineStructure(numGrains: number, gridRadius: number,
             atomicStructure = generatePolycrystallineStructure(PARAMS.numGrains, PARAMS.gridRadius, PARAMS.numLayers, generateGrid);
 
         simulating = true;
-        let i = 0;
 
         const start = performance.now();
 

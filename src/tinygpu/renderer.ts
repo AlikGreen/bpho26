@@ -78,7 +78,22 @@ export class Renderer
 
     public static async create(canvas: HTMLCanvasElement): Promise<Renderer>
     {
+        if (!navigator.gpu) 
+        {
+            console.error("WebGPU is not supported by this browser.");
+        }
+
+        if (!window.isSecureContext) 
+        {
+            console.error("WebGPU requires HTTPS. This page is not secure.");
+        }
+
         const adapter = await navigator.gpu.requestAdapter();
+        if (!adapter) 
+        {
+            console.error("Browser denied the adapter. Check chrome://gpu or iframe permissions.");
+        }
+        
         assert(adapter != null);
         const device = await adapter.requestDevice()
         return new Renderer(device, canvas);

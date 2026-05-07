@@ -296,8 +296,12 @@ code {
 }
 
 canvas {
-    display: block;
-    margin: 50px;
     width: min(calc(100vw - 100px), calc(100vh - 100px));
     aspect-ratio: 1;
+}
+
+#canvas_container
+{
+    display: block;
+    margin: 50px;
 }

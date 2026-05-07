@@ -4,6 +4,7 @@ export const TextureFormat =
     RGBA8Unorm:  'rgba8unorm',
     RGBA16Float: 'rgba16float',
     RGBA32Float: 'rgba32float',
+    RG32Float: 'rg32float',
     R32Float:    'r32float',
     Depth24:     'depth24plus',
 } as const;
@@ -20,6 +21,19 @@ export const TextureUsage =
 } as const;
 
 export type TextureUsageFlags = number;
+
+function floatToF16(val: number): number
+{
+    const f32 = new Float32Array([val]);
+    const u32 = new Uint32Array(f32.buffer)[0];
+    const sign    = (u32 >> 31) & 0x1;
+    const exp     = (u32 >> 23) & 0xFF;
+    const mant    = u32 & 0x7FFFFF;
+    const f16exp  = exp - 127 + 15;
+    if (f16exp <= 0)  return sign << 15;
+    if (f16exp >= 31) return (sign << 15) | (0x1F << 10);
+    return (sign << 15) | (f16exp << 10) | (mant >> 13);
+}
 
 export class Texture 
 {
@@ -122,6 +136,70 @@ export class Texture
                 height: this.height 
             }
         );
+    }
+
+    public clear(color: [number, number, number, number] = [0, 0, 0, 0]): void
+    {
+        const bytesPerPixel = this.getBytesPerPixel();
+        const pixelCount = this.width * this.height;
+        const data = new ArrayBuffer(pixelCount * bytesPerPixel);
+
+        if (color[0] !== 0 || color[1] !== 0 || color[2] !== 0 || color[3] !== 0)
+        {
+            switch (this.format)
+            {
+                case TextureFormat.RGBA8Unorm:
+                {
+                    const view = new Uint8Array(data);
+                    const r = Math.round(color[0] * 255);
+                    const g = Math.round(color[1] * 255);
+                    const b = Math.round(color[2] * 255);
+                    const a = Math.round(color[3] * 255);
+                    for (let i = 0; i < pixelCount; i++)
+                    {
+                        view[i * 4 + 0] = r;
+                        view[i * 4 + 1] = g;
+                        view[i * 4 + 2] = b;
+                        view[i * 4 + 3] = a;
+                    }
+                    break;
+                }
+                case TextureFormat.RGBA16Float:
+                {
+                    const view = new Uint16Array(data);
+                    const toF16 = (v: number) => floatToF16(v);
+                    for (let i = 0; i < pixelCount; i++)
+                    {
+                        view[i * 4 + 0] = toF16(color[0]);
+                        view[i * 4 + 1] = toF16(color[1]);
+                        view[i * 4 + 2] = toF16(color[2]);
+                        view[i * 4 + 3] = toF16(color[3]);
+                    }
+                    break;
+                }
+                case TextureFormat.RGBA32Float:
+                {
+                    const view = new Float32Array(data);
+                    for (let i = 0; i < pixelCount; i++)
+                    {
+                        view[i * 4 + 0] = color[0];
+                        view[i * 4 + 1] = color[1];
+                        view[i * 4 + 2] = color[2];
+                        view[i * 4 + 3] = color[3];
+                    }
+                    break;
+                }
+                case TextureFormat.R32Float:
+                {
+                    const view = new Float32Array(data);
+                    for (let i = 0; i < pixelCount; i++)
+                        view[i] = color[0];
+                    break;
+                }
+            }
+        }
+
+        this.write(new Uint8Array(data));
     }
 
     private getBytesPerPixel(): number

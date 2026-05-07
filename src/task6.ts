@@ -5,66 +5,113 @@ import { Pane } from 'tweakpane';
 import './style.css';
 
 import vertWGSL from './assets/shaders/screen.vert.wgsl?raw';
-import fragWGSL from './assets/shaders/task6.frag.wgsl?raw';
+import fragWGSL from './assets/shaders/task6/task6.frag.wgsl?raw';
+import computeWGSL from './assets/shaders/task6/electronSimulation.wgsl?raw';
 import { BufferUsage } from './tinygpu/buffer';
 import { uint } from './tinygpu/uniforms';
+import { TextureFormat, TextureUsage } from './tinygpu/texture';
 
 
 const planck =  6.626e-34;
 const eMass = 9.109e-31;
 const eCharge = 1.602e-19;
 
-// function generateGraphite(gridRadius: number, numLayers: number = 2): Float32Array {
-//     const bondLength  = 0.142; // nm, C-C bond
-//     const a           = bondLength * Math.sqrt(3); // lattice constant ~0.246 nm
-//     const interlayer  = 0.335; // nm, layer spacing
-
-//     // Primitive lattice vectors
-//     const a1 = [a * Math.sqrt(3) / 2,  a / 2];
-//     const a2 = [a * Math.sqrt(3) / 2, -a / 2];
-
-//     const atoms: number[] = [];
-
-//     for (let layer = 0; layer < numLayers; layer++) {
-//         const z      = layer * interlayer;
-//         // AB (Bernal) stacking: each layer shifts by one bond vector
-//         const shift  = layer * bondLength;
-
-//         for (let i = -gridRadius; i <= gridRadius; i++) {
-//             for (let j = -gridRadius; j <= gridRadius; j++) {
-//                 const cx = i * a1[0] + j * a2[0];
-//                 const cy = i * a1[1] + j * a2[1];
-
-//                 // A sublattice
-//                 atoms.push(cx + shift, cy, z, 0);
-//                 // B sublattice
-//                 atoms.push(cx + shift + bondLength, cy, z, 0);
-//             }
-//         }
-//     }
-
-//     return new Float32Array(atoms);
-// }
-
-function generateGrid(gridSize: number)
+class Vec3
 {
-    const atomicStructure = new Float32Array(gridSize * gridSize * 4);
-    const latticeSpacing = 0.123; // nanometers
-    let crystalOffset = (gridSize - 1) * latticeSpacing * 0.5;
-
-    var index = 0;
-    for(var i = 0; i < gridSize; i++)
+    public constructor(x: number, y: number, z: number)
     {
-        for(var j = 0; j < gridSize; j++)
+        this.x = x;
+        this.y = y;
+        this.z = z;
+    }
+
+    public x = 0.0;
+    public y = 0.0;
+    public z = 0.0;
+}
+
+function shuffle<T>(array: T[]): T[]
+{
+    for (let i = array.length - 1; i > 0; i--)
+    {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+}
+
+function generateGraphite(gridRadius: number, numLayers: number): Vec3[] 
+{
+    const bondLength  = 0.142; 
+    const a           = bondLength * Math.sqrt(3);
+    const interlayer  = 0.335;
+
+    const a1 = [a * Math.sqrt(3) / 2,  a / 2];
+    const a2 = [a * Math.sqrt(3) / 2, -a / 2];
+
+    const atoms: Vec3[] = [];
+
+    for (let layer = 0; layer < numLayers; layer++) 
+    {
+        const z = layer * interlayer;
+
+        for (let i = -gridRadius; i <= gridRadius; i++) 
         {
-            atomicStructure[index] = i * latticeSpacing - crystalOffset;
-            atomicStructure[index + 1] = j * latticeSpacing - crystalOffset;
-            atomicStructure[index + 2] = 0;
-            index += 4;
+            for (let j = -gridRadius; j <= gridRadius; j++) 
+            {
+                const cx = i * a1[0] + j * a2[0];
+                const cy = i * a1[1] + j * a2[1];
+
+                atoms.push(new Vec3(cx, cy, z));
+                atoms.push(new Vec3(cx + bondLength, cy, z));
+            }
+        }
+    }
+
+    return atoms; 
+}
+
+function generateGrid(gridRadius: number, numLayers: number)
+{
+    const atomicStructure: Vec3[] = [];
+    const latticeSpacing = 0.123;
+    const interlayer  = 0.335;
+
+    for(var l = 0; l < numLayers; l++)
+    {
+        for(var i = -gridRadius; i < gridRadius; i++)
+        {
+            for(var j = -gridRadius; j < gridRadius; j++)
+            {
+                atomicStructure.push(new Vec3(i * latticeSpacing, j * latticeSpacing, l * interlayer));
+            }
         }
     }
 
     return atomicStructure;
+}
+
+function generatePolycrystallineStructure(numGrains: number, gridRadius: number, numLayers: number, grainFunc: (gr: number, nl: number) => Vec3[]): Vec3[] 
+{
+    const allAtoms: Vec3[] = [];
+
+    for (let g = 0; g < numGrains; g++) 
+    {
+        const grainAtoms = grainFunc(gridRadius, numLayers);
+    
+        const randomAngle = Math.random() * Math.PI * 2;
+        const cos = Math.cos(randomAngle);
+        const sin = Math.sin(randomAngle);
+
+        for (const atom of grainAtoms) 
+        {
+            const rx = atom.x * cos - atom.y * sin;
+            const ry = atom.x * sin + atom.y * cos;
+            allAtoms.push(new Vec3(rx, ry, atom.z));
+        }
+    }
+
+    return allAtoms;
 }
 
 
@@ -80,28 +127,149 @@ function generateGrid(gridSize: number)
         screenSize: 0.3,
         hitColor: {r: 0, g: 255, b: 0, a: 1.0},
         intensityMultiplier: 0.0,
-        autoUpdate: false,
+        texSize: 1024,
+        progress: 0,
+        offset: {x:0.0, y:0.0},
+        zoom: 1.0,
+
+        structureType: 'graphite',
+        gridRadius: 8,
+        numLayers: 8,
+        numGrains: 32,
     };
 
-    const pane = new Pane(
+    var atomicStructure: Vec3[] = [];
+
+    const container1 = document.createElement('div');
+    container1.style.cssText = `
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        width: 312px;
+    `;
+    document.body.appendChild(container1);
+
+    const container2 = document.createElement('div');
+    container2.style.cssText = `
+        position: fixed;
+        top: 16px;
+        right: 344px;
+        width: 312px;
+    `;
+
+    document.body.appendChild(container2);
+
+    const simPane = new Pane(
     {
-        title: 'Settings',
+        title: 'Simulation',
         expanded: false,
+        container: container1,
     });
 
 
-    pane.addBinding(PARAMS, 'voltage', { min: 1000, max: 5000 });
-    pane.addBinding(PARAMS, 'screenDistance', { min: 0, max: 1 });
-    pane.addBinding(PARAMS, 'screenSize', { min: 0.03, max: 1 });
-    pane.addBinding(PARAMS, 'hitColor');
+    const structureFolder = simPane.addFolder({ title: 'Structure' });
+    structureFolder.addBinding(PARAMS, 'structureType', 
+    {
+        view: 'list',
+        label: 'type',
+        options: [
+            { text: 'Graphite', value: 'graphite' },
+            { text: 'Uniform Grid', value: 'grid' },
+        ],
+    });
 
-    const intensityBinding = pane.addBinding(PARAMS, 'intensityMultiplier', { min: -3, max: 5 });
+    structureFolder.addBinding(PARAMS, 'gridRadius', { min: 1, max: 32, step: 1 });
+    structureFolder.addBinding(PARAMS, 'numLayers', { min: 1, max: 32, step: 1 });
+    structureFolder.addBinding(PARAMS, 'numGrains', { min: 1, max: 128, step: 1 });
+
+    simPane.addBinding(PARAMS, 'voltage', { min: 1000, max: 5000 })
+
+    simPane.addBinding(PARAMS, 'screenDistance', { min: 0, max: 1 })
+
+    simPane.addBinding(PARAMS, 'screenSize', { min: 0.03, max: 1 })
+
+    simPane.addBinding(PARAMS, 'texSize');
+    var simulating = false;
+    let simTextElement = document.getElementById("simulating_text") as HTMLParagraphElement;
+
+    simPane.addButton({ label: 'simulate', title: 'Simulate' }).on("click", () =>
+    {
+        realStorageTexture.clear();
+        imagStorageTexture.clear();
+        atomsProccessed = 0;
+
+        if(PARAMS.structureType  == 'graphite')
+            atomicStructure = generatePolycrystallineStructure(PARAMS.numGrains, PARAMS.gridRadius, PARAMS.numLayers, generateGraphite);
+        else if(PARAMS.structureType == 'grid')
+            atomicStructure = generatePolycrystallineStructure(PARAMS.numGrains, PARAMS.gridRadius, PARAMS.numLayers, generateGrid);
+
+        simulating = true;
+        simTextElement.innerText = "Simulating...";
+        let i = 0;
+
+        const start = performance.now();
+
+        function tick()
+        {
+            if (i < atomicStructure.length)
+            {
+                // do as many batches as possible in ~8ms per frame
+                const frameStart = performance.now();
+                while (i < atomicStructure.length && performance.now() - frameStart < 8)
+                {
+                    stepSimulation();
+                    i += BATCH_SIZE;
+                }
+
+                PARAMS.progress = i / atomicStructure.length;
+                simTextElement.innerText = `Simulating ${i}/${atomicStructure.length}`;
+                requestAnimationFrame(tick);
+            }
+            else
+            {
+                simTextElement.innerText = "";
+                PARAMS.progress = 1;
+                simulating = false;
+                simTextElement.innerText = `Simulated took ${performance.now()-start}ms`;
+            }
+        }
+
+        requestAnimationFrame(tick);
+    });
+
+
+    simPane.addBinding(PARAMS, 'progress', {
+        readonly: true,
+        min: 0,
+        max: 1,
+        step: 0.01,
+    });
+
+
+
+    const viewPane = new Pane(
+    {
+        title: 'Display',
+        expanded: false,
+        container: container2
+    });
+
+    const colorFolder = viewPane.addFolder({ title: 'Colour' });
+
+    colorFolder.addBinding(PARAMS, 'hitColor');
+
+    const intensityBinding = colorFolder.addBinding(PARAMS, 'intensityMultiplier', { min: -3, max: 5 });
     intensityBinding.element.title = 'logarithmic scale 10^x';
-    pane.addBinding(PARAMS, 'autoUpdate');
+
+    const viewFolder = viewPane.addFolder({ title: 'View' });
+
+    viewFolder.addBinding(PARAMS, 'offset', { min: -1, max: 1 })
+    viewFolder.addBinding(PARAMS, 'zoom', { min: 1, max: 10 })
 
     const renderer = await Renderer.create(canvas);
     const vertShader = renderer.createShader(vertWGSL);
     const fragShader = renderer.createShader(fragWGSL);
+    const computeShader = renderer.createShader(computeWGSL);
 
     const quad = renderer.createBuffer(new Float32Array([
         -1,  1, 0, 1,
@@ -112,61 +280,91 @@ function generateGrid(gridSize: number)
          1,  1, 1, 1,
     ]), BufferUsage.Vertex);
 
-    const uniforms = renderer.createUniforms();
+    const computeUniforms = renderer.createUniforms();
+    const renderUniforms = renderer.createUniforms();
+    // const atomicStructure = generateGrid(32);
 
-    // const atomicStructure = generateGraphite(32, 128);
-    const atomicStructure = generateGrid(32);
+    var texSize = 1024;
    
+    var realStorageTexture = renderer.createTexture(texSize, texSize, TextureFormat.R32Float, TextureUsage.StorageBinding | TextureUsage.CopyDst);
+    var imagStorageTexture = renderer.createTexture(texSize, texSize, TextureFormat.R32Float, TextureUsage.StorageBinding | TextureUsage.CopyDst);
 
-    const atomStructureBuffer = renderer.createBuffer(atomicStructure, BufferUsage.Storage);
+    var atomsProccessed = 0;
 
-    let button = pane.addButton({ label: 'update', title: 'Update' });
-    button.hidden = false;
-    button.on("click", () =>
-    {
-        render();
-    });
+    const BATCH_SIZE = 512;
+    const atomBatchData = new Float32Array(BATCH_SIZE * 4);
 
     renderer.onRender(() => 
     {
-        if(PARAMS.autoUpdate)
+        if(simulating) return;
+
+        renderUniforms.set(0, 
         {
-            render();
-            button.hidden = true;
-        }
-        else
-        {
-            button.hidden = false;
-        }
+            intensityMultiplier: Math.pow(10, PARAMS.intensityMultiplier),
+            hitColor: [PARAMS.hitColor.r/255.0, PARAMS.hitColor.g/255.0, PARAMS.hitColor.b/255.0, PARAMS.hitColor.a],
+            atomCount: uint(atomsProccessed),
+            offset: [PARAMS.offset.x, -PARAMS.offset.y],
+            zoom: PARAMS.zoom,
+        });
+
+
+        renderUniforms.set(1, realStorageTexture, { storage: true, storageAccess: 'read-only' });
+        renderUniforms.set(2, imagStorageTexture, { storage: true, storageAccess: 'read-only' });
+        
+        renderer.beginRender();
+
+        renderer.setVertShader(vertShader);
+        renderer.setFragShader(fragShader);
+
+        renderer.setVertexBuffer(quad, [VertexFormat.Float2, VertexFormat.Float2]);
+        renderer.setUniforms(renderUniforms);
+        renderer.draw(6);
+
+        renderer.endRender();
     });
 
     renderer.run();
 
-    function render()
+    function stepSimulation()
     {
-        assert(canvas != null);
-        const wavelength = planck / Math.sqrt(2 * eMass * eCharge * PARAMS.voltage);
-
-        uniforms.set(0, 
+        PARAMS.progress = atomsProccessed / atomicStructure.length;
+        if(atomsProccessed < atomicStructure.length)
         {
-            screenDistance: PARAMS.screenDistance * 1e9,
-            screenSize: PARAMS.screenSize * 1e9, 
-            color: [PARAMS.hitColor.r/255.0, PARAMS.hitColor.g/255.0, PARAMS.hitColor.b/255.0, PARAMS.hitColor.a],
-            intensityMultiplier: Math.pow(10, PARAMS.intensityMultiplier),
-            aspectRatio: canvas.width/canvas.height,
-            wavelength: wavelength * 1e9,
-            atomCount: uint(32*32),
-        });
+            const count = Math.min(BATCH_SIZE, atomicStructure.length - atomsProccessed);
 
-        uniforms.set(1, atomStructureBuffer, { readOnly: true });
+            for (let j = 0; j < count; j++)
+            {
+                const atom = atomicStructure[atomsProccessed + j];
+                atomBatchData[j * 4 + 0] = atom.x;
+                atomBatchData[j * 4 + 1] = atom.y;
+                atomBatchData[j * 4 + 2] = atom.z;
+                atomBatchData[j * 4 + 3] = 0;
+            }
+            atomsProccessed += count;
 
-        renderer.setVertShader(vertShader);
-        renderer.setFragShader(fragShader);
-        
-        renderer.beginRender();
-        renderer.setVertexBuffer(quad, [VertexFormat.Float2, VertexFormat.Float2]);
-        renderer.setUniforms(uniforms);
-        renderer.draw(6);
-        renderer.endRender();
+
+            const wavelength = planck / Math.sqrt(2 * eMass * eCharge * PARAMS.voltage);
+
+            computeUniforms.set(0, 
+            {
+                wavelength: wavelength * 1e9,
+                screenDistance: PARAMS.screenDistance * 1e9,
+                screenSize: PARAMS.screenSize * 1e9, 
+                atomCount: uint(count),
+            });
+
+            computeUniforms.set(1,  atomBatchData);
+
+            computeUniforms.set(2, realStorageTexture, { storage: true, storageAccess: 'read-write' });
+            computeUniforms.set(3, imagStorageTexture, { storage: true, storageAccess: 'read-write' });
+
+            renderer.beginCompute();
+
+            renderer.setUniforms(computeUniforms);
+            renderer.setComputeShader(computeShader);
+            renderer.dispatch(1024/8, 1024/8)
+
+            renderer.endCompute();
+        }
     }
 })();

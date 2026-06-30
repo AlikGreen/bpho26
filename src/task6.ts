@@ -37,7 +37,7 @@ class Vec3
 
 function generateGraphite(gridRadius: number, numLayers: number): Vec3[] 
 {
-    const bondLength  = 0.142; 
+    const bondLength  = 0.132; 
     const a           = bondLength * Math.sqrt(3);
     const interlayer  = 0.335;
 
@@ -410,6 +410,7 @@ function generatePolycrystallineStructure(numGrains: number, gridRadius: number,
 
 
             const wavelength = planck / Math.sqrt(2 * eMass * eCharge * PARAMS.voltage);
+            console.info(wavelength);
 
             computeUniforms.set(0, 
             {

@@ -25,7 +25,14 @@ function drawCircle(x: number, y: number, radius: number, color: string)
 function drawRect(x: number, y: number, w: number, h: number, color: string)
 {
     ctx.fillStyle = color;
-    ctx.fillRect(x*canvas.width/viewportSize, canvas.width-y*canvas.width/viewportSize, w*canvas.width/viewportSize, -h*canvas.width/viewportSize);
+    ctx.fillRect(x*canvas.width/viewportSize, canvas.height-y*canvas.width/viewportSize, w*canvas.width/viewportSize, -h*canvas.height/viewportSize);
+}
+
+function drawText(x: number, y: number, text: string, style: string, color: string)
+{
+    ctx.fillStyle = color;
+    ctx.font = style;
+    ctx.fillText(text, x*canvas.width/viewportSize, canvas.height-y*canvas.width/viewportSize);
 }
 
 const eMass = 9.109e-31;
@@ -125,6 +132,16 @@ function drawCircuit()
     drawRect(viewportSize-0.05-0.5+0.15, viewportSize/2-3, 0.2, -3, "#B87333");
 
     drawRect(0.05+0.15, viewportSize/2-3-3, viewportSize-0.4, 0.2, "#B87333");
+
+    if(PARAMS.voltage < 0)
+    {
+        drawText(0.15, 13.5, "+", `${24*-PARAMS.voltage}px Arial`, "white");
+        drawText(viewportSize-0.15-0.25*-PARAMS.voltage, 13.5, "-", `${24*-PARAMS.voltage}px Arial`, "white");
+    }else if(PARAMS.voltage > 0)
+    {
+        drawText(0.15, 13.5, "-", `${24*PARAMS.voltage}px Arial`, "white");
+        drawText(viewportSize-0.05-0.25*PARAMS.voltage, 13.5, "+", `${24*PARAMS.voltage}px Arial`, "white");
+    }
 }
     
 

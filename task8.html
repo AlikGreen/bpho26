@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="./style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quantum Cryptography</title>
+  </head>
+  <body>
+    <div class="row">
+        <a class="btn margins" href="./index.html">Back</a>
+        <h1 class="margins">Quantum Cryptography</h1>
+    </div>
+    <div id="detectors_container">
+        <div class="detector_holder">
+            <div class="row">
+                <p>Angle</p>
+                <input id="blue_detector_angle" type="range" min="-180" max="180" value="0">
+                <p id="blue_detector_degrees">θ=0°</p>
+            </div>
+            <div class="imageContainer">
+                <img class="overlay" src="./images/Light Detector Blue.png" id="blue_detector">
+                <img class="base" src="./images/Vertical Dashed.png">
+            </div>
+        </div>
+        <div></div>
+        <div class="detector_holder">
+            <div class="row">
+                <p>Angle</p>
+                <input id="green_detector_angle" type="range" min="-180" max="180" value="0">
+                <p id="green_detector_degrees">Φ=0°</p>
+            </div>
+            <div class="imageContainer">
+                <img class="overlay" src="./images/Light Detector Green.png" id="green_detector">
+                <img class="base" src="./images/Vertical Dashed.png">
+            </div>
+        </div>
+    </div>
+    <br><br><br><br>
+    <div id="calc_text_holder">
+        <div> 
+            <h2>Classical</h2>
+            <p id="classical_text"></p>
+        </div>
+        <div>
+            <h2>Quantum</h2>
+            <p id="quantum_text"></p>
+        </div>
+    </div>
+    <script type="module" src="/src/task8.ts"></script>
+  </body>
+</html>

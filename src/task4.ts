@@ -104,7 +104,7 @@ const PARAMS =
 
 const simPane = new Pane(
 {
-    title: 'Simulation',
+    title: 'Settings',
     expanded: false,
 });
 

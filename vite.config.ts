@@ -10,7 +10,8 @@ export default defineConfig({
       {
         main: 'index.html',
         task6: 'task6.html',
-        task4: 'task4.html'
+        task4: 'task4.html',
+        task8: 'task8.html'
       }
     }
   }

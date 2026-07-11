@@ -321,7 +321,7 @@ code {
 
 canvas 
 {
-    width: min(calc(100vw - 100px), calc(100vh - 100px));
+    width: min(calc(90vw - 100px), calc(90vh - 100px));
     aspect-ratio: 1;
 }
 
@@ -338,6 +338,12 @@ img
     position: relative;
     display: block;
 }
+
+.margin_left
+{
+    margin-left: 80px;
+}
+
 
 #detectors_container
 {
@@ -369,23 +375,44 @@ input[type="range"]
     width: 160px;
 }
 
+.detector_holder 
+{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 220px;
+}
+
 .imageContainer
 {
     position: relative;
     display: inline-block;
 }
 
-.base
+.imageContainer {
+  position: relative;
+  width: 200px; 
+  height: 200px;
+  overflow: visible;
+}
+
+.imageContainer .base,
+.imageContainer .overlay 
+{
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+
+  pointer-events: none;
+}
+
+.imageContainer .base
 {
     display: block;
 }
 
-.overlay
-{
-    position: absolute;
-    top: 0;
-    left: 0;
-}
 
 .btn
 {
@@ -416,3 +443,59 @@ input[type="range"]
     flex-direction: column;
     gap: 12px;
 }
+
+#blue_detector_degrees,
+#green_detector_degrees 
+{
+  display: inline-block;
+  width: 5ch;
+  text-align: left;
+}
+
+.graph svg {
+  background: #fafafa;
+  border-radius: 8px;
+}
+
+.graph .grid line 
+{
+  stroke: #ddd;
+  stroke-width: 1;
+}
+
+
+.graph .x.axis path,
+.graph .y.axis path 
+{
+  stroke: #333;
+}
+
+.graph .line 
+{
+  stroke-width: 4px;
+}
+
+.graph text 
+{
+  font-family: inherit;
+  fill: #333;
+}
+
+.graph .tick text {
+  font-size: 16px;
+}
+
+.graph 
+{
+    padding: 20px 30px 30px 40px; /* extra room around the SVG for labels */
+    width: 600px;
+}
+
+
+.grid
+{
+    display: grid;
+    grid-template-columns: repeat(auto-fit, 600px);
+    gap: 1rem;
+}
+

@@ -1,6 +1,8 @@
-import './style.css';
 import { Pane } from 'tweakpane';
+import * as functionPlotModule from "function-plot";
+const functionPlot = (functionPlotModule as any).default;
 
+const graphElement = document.getElementById("graphElement")!;
 const canvas = document.querySelector<HTMLCanvasElement>('#canvas')!;
 const ctx = canvas.getContext("2d")!;
 
@@ -78,8 +80,6 @@ class Electron
 
         this.x += this.velX*dt;
         this.y += this.velY*dt;
-
-        console.log(this.x);
     }
 }
 
@@ -96,7 +96,7 @@ const PARAMS =
 {
     voltage: -1,
     wavelengthNM: 150,
-    electronsPerNSExp: 6,
+    intensity: 0.5,
     workFunctionEV: 4.7,
     timeScaleExp: -5,
 };
@@ -112,7 +112,7 @@ const simPane = new Pane(
 simPane.addBinding(PARAMS, 'voltage', { min: -5, max: 5 })
 simPane.addBinding(PARAMS, 'wavelengthNM', { min: 50, max: 1000 })
 simPane.addBinding(PARAMS, 'workFunctionEV', { min: 0, max: 10 })
-simPane.addBinding(PARAMS, 'electronsPerNSExp', { min: 4, max: 9 })
+simPane.addBinding(PARAMS, 'intensity', { min: 0, max: 9 })
 simPane.addBinding(PARAMS, 'timeScaleExp', { min: -7, max: -4 })
 
 simPane.addButton({ label: 'reset', title: 'Reset' }).on('click', () => 
@@ -159,7 +159,7 @@ function render(now: number)
     {
         if(e.active) return;
 
-        if(Math.random() < dt * Math.pow(10, PARAMS.electronsPerNSExp) / electrons.length)
+        if(Math.random() < dt * Math.pow(10, 3 + (PARAMS.intensity * 4)) / electrons.length)
         {
             let keMax = ((planck * lightSpeed) / (PARAMS.wavelengthNM * 1E-9)) - PARAMS.workFunctionEV * eCharge;
             let ke = keMax*(1-Math.sqrt(1-Math.random())); // Simple distribution of photoelectron kinetic energies

@@ -1,5 +1,3 @@
-import "./style.css";
-
 const greenDetectorImg = document.getElementById("green_detector")!;
 const greenDetectorSlider = document.getElementById("green_detector_angle") as HTMLInputElement;
 const greenDetectorDegrees = document.getElementById("green_detector_degrees")!;
@@ -39,9 +37,13 @@ function updateText()
 
     classicalText.innerHTML = `
     P(mismatch) = 1 - cos<sup>2</sup>θ cos<sup>2</sup>Φ - sin<sup>2</sup>θ sin<sup>2</sup>Φ<br>
-    P(mismatch) = 1 - cos<sup>2</sup>(${theta}) cos<sup>2</sup>(${phi}) - sin<sup>2</sup>(${theta}) sin<sup>2</sup>(${phi})<br>
-    P(mismatch) = 1 - (${cosTheta.toFixed(2)})<sup>2</sup> (${cosPhi.toFixed(2)})<sup>2</sup> - (${sinTheta.toFixed(2)})<sup>2</sup> (${sinPhi.toFixed(2)})<sup>2</sup><br>
-    P(mismatch) = 1 - ${(cosTheta*cosTheta*cosPhi*cosPhi).toFixed(2)} - ${(sinTheta*sinTheta*sinPhi*sinPhi).toFixed(2)} = ${(1 - cosTheta*cosTheta*cosPhi*cosPhi - sinTheta*sinTheta*sinPhi*sinPhi).toFixed(2)}
+    P(mismatch) = 1 - cos<sup>2</sup>(${theta}) cos<sup>2</sup>(${phi}) - 
+    sin<sup>2</sup>(${theta}) sin<sup>2</sup>(${phi})<br>
+    P(mismatch) = 1 - (${cosTheta.toFixed(2)})<sup>2</sup> (${cosPhi.toFixed(2)})<sup>2</sup> 
+    - (${sinTheta.toFixed(2)})<sup>2</sup> (${sinPhi.toFixed(2)})<sup>2</sup><br>
+    P(mismatch) = 1 - ${(cosTheta*cosTheta*cosPhi*cosPhi).toFixed(2)} 
+    - ${(sinTheta*sinTheta*sinPhi*sinPhi).toFixed(2)} = 
+    ${(1 - cosTheta*cosTheta*cosPhi*cosPhi - sinTheta*sinTheta*sinPhi*sinPhi).toFixed(2)}
     `;
 
     quantumText.innerHTML = `

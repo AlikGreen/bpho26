@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="./style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="./style.css">
+    <title>Compton Scattering</title>
+  </head>
+  <body>
+    <div class="row">
+        <a class="btn margins" href="./index.html">Back</a>
+        <h1 class="margins">Compton Scattering</h1>
+    </div>
+
+
+    <div class="margin_left row">
+        <h3>Energy (keV):</h3>
+        <input id="evSlider" type="range" min="0" max="1000" value="500">
+        <h4 id="evText">500 keV</h4>
+    </div>
+    
+    <div class="grid margins">
+    <div id="wavelengthGraph" class="graph"></div>
+    <div id="speedGraph" class="graph"></div>
+    <div id="recoilAngleGraph" class="graph"></div>
+    </div>
+    <script type="module" src="/src/task9.ts"></script>
+  </body>
+</html>

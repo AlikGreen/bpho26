@@ -2,7 +2,7 @@ import { Pane } from 'tweakpane';
 import * as functionPlotModule from "function-plot";
 const functionPlot = (functionPlotModule as any).default;
 
-const graphElement = document.getElementById("graphElement")!;
+const graphElement = document.getElementById("graph")!;
 const canvas = document.querySelector<HTMLCanvasElement>('#canvas')!;
 const ctx = canvas.getContext("2d")!;
 
@@ -85,7 +85,7 @@ class Electron
 
 var electrons: Electron[] = [];
 
-for(var i = 0; i < 10000; i++)
+for(var i = 0; i < 20000; i++)
 {
     electrons.push(new Electron());
 }
@@ -109,11 +109,11 @@ const simPane = new Pane(
 });
 
 
-simPane.addBinding(PARAMS, 'voltage', { min: -5, max: 5 })
-simPane.addBinding(PARAMS, 'wavelengthNM', { min: 50, max: 1000 })
-simPane.addBinding(PARAMS, 'workFunctionEV', { min: 0, max: 10 })
-simPane.addBinding(PARAMS, 'intensity', { min: 0, max: 9 })
-simPane.addBinding(PARAMS, 'timeScaleExp', { min: -7, max: -4 })
+simPane.addBinding(PARAMS, 'voltage', { min: -5, max: 5 }).on('change', () => updateGraph());
+simPane.addBinding(PARAMS, 'wavelengthNM', { min: 50, max: 1000 }).on('change', () => updateGraph());
+simPane.addBinding(PARAMS, 'workFunctionEV', { min: 0, max: 10 }).on('change', () => updateGraph());
+simPane.addBinding(PARAMS, 'intensity', { min: 0, max: 1 }).on('change', () => updateGraph());
+simPane.addBinding(PARAMS, 'timeScaleExp', { min: -7, max: -4 }).on('change', () => updateGraph());
 
 simPane.addButton({ label: 'reset', title: 'Reset' }).on('click', () => 
 {
@@ -122,7 +122,6 @@ simPane.addButton({ label: 'reset', title: 'Reset' }).on('click', () =>
         e.active = false;
     });
 });
-
 function drawCircuit()
 {
     drawRect(0.05, viewportSize/2-3, 0.5, 6, "#B87333");
@@ -159,7 +158,7 @@ function render(now: number)
     {
         if(e.active) return;
 
-        if(Math.random() < dt * Math.pow(10, 3 + (PARAMS.intensity * 4)) / electrons.length)
+        if(Math.random() < dt * Math.pow(10, 3 + (PARAMS.intensity * 6)) / electrons.length)
         {
             let keMax = ((planck * lightSpeed) / (PARAMS.wavelengthNM * 1E-9)) - PARAMS.workFunctionEV * eCharge;
             let ke = keMax*(1-Math.sqrt(1-Math.random())); // Simple distribution of photoelectron kinetic energies
@@ -187,4 +186,25 @@ function render(now: number)
     requestAnimationFrame(render);
 }
 
+updateGraph();
 requestAnimationFrame(render);
+
+function updateGraph()
+{
+    let gradient = `(${planck}/${eCharge})`
+
+    functionPlot.default({
+    target: graphElement,
+    title: "Electron recoil speed vs Scattering Angle",
+    width: 600,
+    disableZoom: true,
+    yAxis: { domain: [-5, 5], label: "Stopping Voltage / V" },
+    xAxis: { domain: [0, 2], label: "Frequency / Hz × 10¹⁵" },
+    grid: true,
+    data: [
+        {
+        fn: `${gradient} * x * 10^15 - ${PARAMS.workFunctionEV}`,
+        }
+    ]
+    });
+}

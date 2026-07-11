@@ -37,6 +37,28 @@ function drawText(x: number, y: number, text: string, style: string, color: stri
     ctx.fillText(text, x*canvas.width/viewportSize, canvas.height-y*canvas.width/viewportSize);
 }
 
+function drawPolygon(points: { x: number, y: number }[], color: string, alpha: number = 1)
+{
+    ctx.beginPath();
+    ctx.moveTo(
+        points[0].x * canvas.width / viewportSize,
+        canvas.height - points[0].y * canvas.width / viewportSize
+    );
+    for (let i = 1; i < points.length; i++)
+    {
+        ctx.lineTo(
+            points[i].x * canvas.width / viewportSize,
+            canvas.height - points[i].y * canvas.width / viewportSize
+        );
+    }
+    ctx.closePath();
+
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.globalAlpha = 1;''
+}
+
 const eMass = 9.109e-31;
 const eCharge = 1.602e-19;
 const planck =  6.626e-34;
@@ -122,8 +144,89 @@ simPane.addButton({ label: 'reset', title: 'Reset' }).on('click', () =>
         e.active = false;
     });
 });
+
+function wavelengthToRGB(wavelengthNM: number): { r: number, g: number, b: number }
+{
+    const clamped = Math.max(380, Math.min(750, wavelengthNM));
+
+    let r = 0, g = 0, b = 0;
+
+    if (clamped >= 380 && clamped < 440)
+    {
+        r = -(clamped - 440) / (440 - 380);
+        g = 0;
+        b = 1;
+    }
+    else if (clamped >= 440 && clamped < 490)
+    {
+        r = 0;
+        g = (clamped - 440) / (490 - 440);
+        b = 1;
+    }
+    else if (clamped >= 490 && clamped < 510)
+    {
+        r = 0;
+        g = 1;
+        b = -(clamped - 510) / (510 - 490);
+    }
+    else if (clamped >= 510 && clamped < 580)
+    {
+        r = (clamped - 510) / (580 - 510);
+        g = 1;
+        b = 0;
+    }
+    else if (clamped >= 580 && clamped < 645)
+    {
+        r = 1;
+        g = -(clamped - 645) / (645 - 580);
+        b = 0;
+    }
+    else if (clamped >= 645 && clamped <= 750)
+    {
+        r = 1;
+        g = 0;
+        b = 0;
+    }
+
+    let factor = 1;
+    if (clamped >= 380 && clamped < 420)
+        factor = 0.3 + 0.7 * (clamped - 380) / (420 - 380);
+    else if (clamped >= 700 && clamped <= 750)
+        factor = 0.3 + 0.7 * (750 - clamped) / (750 - 700);
+
+    const gamma = 0.8;
+    const intensity = (c: number) => c === 0 ? 0 : Math.round(255 * Math.pow(c * factor, gamma));
+
+    return {
+        r: intensity(r),
+        g: intensity(g),
+        b: intensity(b)
+    };
+}
+
+function wavelengthToRGBString(wavelengthNM: number, alpha: number = 1): string
+{
+    const { r, g, b } = wavelengthToRGB(wavelengthNM);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 function drawCircuit()
 {
+    const rectRightX = 0.05 + 0.5;
+    const rectTopY = viewportSize/2 + 3;    
+    const rectBottomY = viewportSize/2 - 3; 
+
+    const apex = { x: viewportSize * 0.7, y: viewportSize };
+
+    drawPolygon(
+        [
+            apex,
+            { x: rectRightX, y: rectTopY },
+            { x: rectRightX, y: rectBottomY }
+        ],
+        wavelengthToRGBString(PARAMS.wavelengthNM, 0.4)
+    );
+
     drawRect(0.05, viewportSize/2-3, 0.5, 6, "#B87333");
     drawRect(0.05+0.15, viewportSize/2-3, 0.2, -3, "#B87333");
 

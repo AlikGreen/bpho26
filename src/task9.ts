@@ -19,8 +19,13 @@ updateGraphs();
 
 function updateGraphs() 
 {
+    // Original wavelength
     let beforeWL = (planck * lightSpeed) / energy;
+
+    // Shift in wavelength from collision
     let shiftWL = `((${planck / (eMass * lightSpeed)}) * (1 - cos(x*${Math.PI}/180)))`;
+
+    // Final wavelength after collision
     let afterWL = `(${beforeWL} + ${shiftWL})`
 
     functionPlot.default({
@@ -33,10 +38,11 @@ function updateGraphs()
     grid: true,
     data: [
         {
-        fn: `${shiftWL}/${beforeWL}`,
+        fn: `${shiftWL}/${beforeWL}`, // Fractional wavelength shift
         }
     ]
     });
+
 
     let mec2 = eMass * lightSpeed * lightSpeed;
     let hc = planck * lightSpeed;
@@ -50,13 +56,16 @@ function updateGraphs()
     xAxis: { domain: [0, 180], label: "Photon scattering angle θ/deg" },
     grid: true,
     data: [
-        {
+    {   // Equation for electron recoil speed
         fn: `sqrt(1 - (${mec2} / (${hc}/${beforeWL} - ${hc}/${afterWL} + ${mec2}))^2)`,
-        }
+    }
     ]
     });
 
+
+    // Denominator of the fraction inside of the arctan
     let recoilDenom = `(1 + (${shiftWL}/${beforeWL}) - cos(x*${Math.PI}/180))`
+    // Tan of the electron recoil angle
     let tanTheta = `sin(x*${Math.PI}/180)/${recoilDenom}`;
 
     functionPlot.default({
@@ -68,9 +77,9 @@ function updateGraphs()
     xAxis: { domain: [0, 180], label: "Photon scattering angle θ/deg" },
     grid: true,
     data: [
-        {
+    {   // Arctan to get the angle in radians * 180 / PI to get it in
         fn: `atan(${tanTheta})*180/${Math.PI}`,
-        }
+    }
     ]
     });
 }

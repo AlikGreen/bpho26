@@ -91,15 +91,25 @@ class Electron
         drawCircle(this.x, this.y, 0.1, "blue")
     }
 
+    // Simulate a step for the electron
     simulate(dt: number)
     {
+        // If not active don't simulate
         if(!this.active) return;
+
+        // Calculate electric field strenght
         let electricField = PARAMS.voltage / viewportSize;
+
+        // Calculate force
         let force = eCharge * electricField;
+
+        // Calculate accleration
         let acceleration = force / eMass;
 
+        // Update electrons velocity with the acceleration
         this.velX += acceleration*dt;
 
+        // Update electrons position with velocity
         this.x += this.velX*dt;
         this.y += this.velY*dt;
     }
@@ -112,7 +122,6 @@ for(var i = 0; i < 20000; i++)
     electrons.push(new Electron());
 }
 
-var lastTime: number;
 
 const PARAMS = 
 {
@@ -247,45 +256,70 @@ function drawCircuit()
 }
     
 
+var lastTime: number;
+
 function render(now: number)
 {
+    // Calculate time delta since last frame
     if (!lastTime) { lastTime = now; }
     var dt = ((now - lastTime)/1000) * Math.pow(10, PARAMS.timeScaleExp);
     lastTime = now;
 
+    // Clear the canvas to render the new frame on to
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // Draw the circuit (electrodes, wires and light)
     drawCircuit();
 
+    // Loop over every electron
     electrons.forEach(e =>
     {
+        // If it is active skip it
         if(e.active) return;
 
+        // This runs randomly with a higher probability the higher the intensity
         if(Math.random() < dt * Math.pow(10, 3 + (PARAMS.intensity * 6)) / electrons.length)
         {
-            let keMax = ((planck * lightSpeed) / (PARAMS.wavelengthNM * 1E-9)) - PARAMS.workFunctionEV * eCharge;
-            let ke = keMax*(1-Math.sqrt(1-Math.random())); // Simple distribution of photoelectron kinetic energies
+            // Calculate maximum kinetic energy
+            let keMax = ((planck * lightSpeed) / (PARAMS.wavelengthNM * 1E-9)) - 
+                                                PARAMS.workFunctionEV * eCharge;
+
+            // Get a random kinetic energy under the maximum energy
+            // Uses a simple distribution of photoelectron kinetic energies
+            let ke = keMax*(1-Math.sqrt(1-Math.random()));
+            
+            // If the kinetic energy is positive
             if(ke > 0)
             {
+                // Calculate velocity from kinetic energy
                 let velocity = Math.sqrt(ke * 2 / eMass);
+
+                // Set the particle active and spawn it
                 e.active = true;
                 e.spawn(0.6, 10 + (Math.random() - 0.5) * 5.0, velocity);
             }
         }
     });
 
+    // Loop over the electrons again
     electrons.forEach(e =>
     {
+        // If its position is within the left electrode remove it
         if(e.x < 0.5)
             e.active = false;
 
+        // If its position is within the right electrode remove it
         if(e.x > viewportSize - 0.5)
             e.active = false;
 
+        // Simulate it 
         e.simulate(dt);
+
+        // Draw it
         e.draw();
     });
 
+    // Render the next frame
     requestAnimationFrame(render);
 }
 

@@ -434,7 +434,8 @@ input[type="range"]
 
 .task_button
 {
-    width: 20vw;
+    width: 25vw;
+    text-align: left;
 }
 
 #tasks_container

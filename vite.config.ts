@@ -17,6 +17,7 @@ export default defineConfig({
         task7: 'task7.html',
         task8: 'task8.html',
         task9: 'task9.html',
+        task10: 'task10.html',
       }
     }
   }

@@ -500,3 +500,18 @@ input[type="range"]
     gap: 1rem;
 }
 
+
+
+.imgGrid 
+{
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 20px;
+}
+
+.imgGrid img 
+{
+    width: 100%;
+    height: auto;
+    display: block;
+}
